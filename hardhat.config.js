@@ -12,27 +12,52 @@ const IERC20Metadata = require("./artifacts/contracts/IERC20Metadata.sol/IERC20M
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
-  solidity: "0.8.19",
+  solidity: {
+    compilers: [
+      {
+        version: "0.8.19",
+      },
+      {
+        version: "0.4.18",
+      },
+    ]
+  },
+  mocha: {
+    timeout: 2000000,
+  },
   networks: {
+    hardhat: {
+      chainId: 1,
+    },
     goerli: {
       url: `https://goerli.infura.io/v3/${process.env.INFURA_API_KEY}`,
       chainId: 5,
     },
-  }
+    mainnet: {
+      url: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
+      chainId: 1,
+    },
+    localhost:{
+      url: `http://127.0.0.1:8545/`,
+      chainId: 1, // 31337,
+    },
+  },
 };
+
+
+const CHAIN_ID = module.exports.networks.localhost.chainId
+const RPC_URL = module.exports.networks.localhost.url
 
 task("swap", "Swap tokens between src to dest")
   .addParam("amount", "Amount of token to be swapped")
   .addParam("from", "Contract address of Source Token")
-  .addParam("to", "Contract address of Source Token")
+  .addParam("to", "Contract address of Target Token")
   .addParam("recipient", "Recipient of token")
   .setAction(async (taskArgs, {ethers}) => {
-    const CHAIN_ID = config.networks.goerli.chainId;
+    const fromTokenAddress = taskArgs.from
+    const toTokenAddress = taskArgs.to
 
-    const fromToken = taskArgs.from
-    const toToken = taskArgs.to
-
-    const provider = new ethers.providers.JsonRpcProvider(config.networks.goerli.url);
+    const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
     const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider)
 
     const router = new AlphaRouter({
@@ -40,16 +65,16 @@ task("swap", "Swap tokens between src to dest")
       provider,
     })
 
-    const srcContract = await ethers.getContractAt(IERC20Metadata.abi, fromToken, wallet)
+    const srcContract = await ethers.getContractAt(IERC20Metadata.abi, fromTokenAddress, wallet)
     const srcName = await srcContract.name()
     const srcToken = new Token (
       CHAIN_ID,
-      fromToken,
+      fromTokenAddress,
       await srcContract.decimals(),
       srcName,
     )
 
-    const destContract = await ethers.getContractAt(IERC20Metadata.abi, toToken, wallet)
+    const destContract = await ethers.getContractAt(IERC20Metadata.abi, toTokenAddress, wallet)
     const destName = await destContract.name()
     const destToken = new Token (
       CHAIN_ID,
@@ -75,8 +100,8 @@ task("swap", "Swap tokens between src to dest")
       options
     )
 
-    const approvalAmount = ethers.utils.parseUnits("1", 18).toString()
-    await srcContract.approve(process.env.ROUTER_ADDRESS, approvalAmount)
+    const approvalTx = await srcContract.approve(process.env.ROUTER_ADDRESS, approvalAmount)
+    await approvalTx.wait(1);
 
     const tx = await wallet.sendTransaction({
       data: route?.methodParameters?.calldata,
@@ -110,8 +135,9 @@ function countDecimals(x) {
 }
 
 
+// Goerli address
+//
 // const srcTokenAddr = "0x0B1ba0af832d7C05fD64161E0Db78E85978E8082";
 // const srcTokenName = "WETH";
-
 // const destTokenAddr = "0xa2bd28f23A78Db41E49db7d7B64b6411123a8B85";
 // const destTokenName = "USDC";
