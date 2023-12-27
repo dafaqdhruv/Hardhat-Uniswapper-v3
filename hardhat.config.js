@@ -1,5 +1,7 @@
 require("@nomicfoundation/hardhat-toolbox");
-require("@nomicfoundation/hardhat-ethers");
+// require("@nomicfoundation/hardhat-ethers");
+require("@nomiclabs/hardhat-ethers");
+
 require("dotenv").config()
 
 const { task } = require("hardhat/config");
@@ -8,7 +10,7 @@ const JSBI = require("jsbi");
 const { Token, CurrencyAmount, TradeType, Percent } = require('@uniswap/sdk-core')
 const { AlphaRouter, SwapType } = require("@uniswap/smart-order-router");
 
-const IERC20Metadata = require("./artifacts/contracts/IERC20Metadata.sol/IERC20Metadata.json");
+const IERC20Metadata = require("./IERC20Metadata.json");
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
@@ -61,27 +63,31 @@ task("swap", "Swap tokens between src to dest")
     const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider)
 
     const router = new AlphaRouter({
-      chainId: CHAIN_ID,
+      chainId: 1, //CHAIN_ID,
       provider,
     })
 
-    const srcContract = await ethers.getContractAt(IERC20Metadata.abi, fromTokenAddress, wallet)
-    const srcName = await srcContract.name()
+    const srcContract = new ethers.Contract(fromTokenAddress, IERC20Metadata.abi, wallet)
+    const srcName = "Wrapped Ether" // await srcContract.name()
     const srcToken = new Token (
-      CHAIN_ID,
-      fromTokenAddress,
-      await srcContract.decimals(),
+      1, //CHAIN_ID,
+      "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      18, //await srcContract.decimals(),
+      "WETH",
       srcName,
     )
 
-    const destContract = await ethers.getContractAt(IERC20Metadata.abi, toTokenAddress, wallet)
-    const destName = await destContract.name()
+    console.log(srcToken)
+
+    const destName = "USD Coin" //await destContract.name()
     const destToken = new Token (
-      CHAIN_ID,
-      toToken,
-      await destContract.decimals(),
+      1, //CHAIN_ID,
+      "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      6, //await destContract.decimals(),
+      "USDC",
       destName,
-    )
+      )
+      console.log(destToken)
 
     console.log("Swapping %d %s Tokens for maximum %s Tokens", taskArgs.amount, srcName, destName)
 
@@ -99,6 +105,8 @@ task("swap", "Swap tokens between src to dest")
       TradeType.EXACT_INPUT,
       options
     )
+
+    const approvalAmount = ethers.utils.parseUnits("1", 18).toString()
 
     const approvalTx = await srcContract.approve(process.env.ROUTER_ADDRESS, approvalAmount)
     await approvalTx.wait(1);
